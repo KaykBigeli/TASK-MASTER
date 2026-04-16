@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     name        TEXT NOT NULL,
     email       TEXT NOT NULL UNIQUE,
-    password    TEXT NOT NULL,           -- hash bcrypt
+    password    TEXT NOT NULL,
     avatar_url  TEXT,
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
