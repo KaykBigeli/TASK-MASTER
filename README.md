@@ -6,7 +6,7 @@ API REST construída com **FastAPI** + **SQLite**.
 
 ```
 taskmaster/
-├── schema.sql              ← script de criação do banco (você já tem!)
+├── schema.sql              ← script de criação do banco
 ├── requirements.txt
 ├── .env
 └── app/
@@ -32,7 +32,6 @@ venv\Scripts\activate         # Windows
 pip install -r requirements.txt
 
 # 3. Garantir que o schema.sql está na raiz do projeto
-# (o arquivo que você já criou)
 
 # 4. Rodar o servidor
 uvicorn app.main:app --reload
