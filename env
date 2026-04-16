@@ -1,4 +1,4 @@
 DATABASE_URL=./taskmaster.db
-SECRET_KEY=troque-esta-chave-por-algo-seguro-em-producao
+SECRET_KEY=t4skm4st3r
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
