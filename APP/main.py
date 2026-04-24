@@ -8,7 +8,10 @@ app = FastAPI(
     version="1.0.0",
     description="Backend do sistema de gerenciamento de tarefas.",
 )
-
+# teste da API
+@app.post("/teste-direto")
+def teste_direto():
+    return {"message": "Se isso aparecer, o problema está no arquivo auth.py"}
 # ------------------------------------------------------------------
 # CORS — ajuste as origens conforme seu frontend
 # ------------------------------------------------------------------
@@ -33,8 +36,7 @@ app.include_router(projects.router)
 # ------------------------------------------------------------------
 @app.on_event("startup")
 def startup():
-    init_db("schema.sql")
-
+    init_db()
 
 @app.get("/", tags=["Health"])
 def root():

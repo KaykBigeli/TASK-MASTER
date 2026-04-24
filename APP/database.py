@@ -1,18 +1,32 @@
-import sqlite3
+import pymysql
 from contextlib import contextmanager
 from app.config import settings
+from urllib.parse import urlparse
 
-
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(settings.DATABASE_URL)
-    conn.row_factory = sqlite3.Row      # retorna linhas como dicionário
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
-
+def get_connection():
+    try:
+        url = urlparse(settings.DATABASE_URL)
+        return pymysql.connect(
+            host=url.hostname or "127.0.0.1",
+            port=url.port or 25789,
+            user=url.username or "root",
+            password=url.password or "Prometheus15!",
+            database=url.path.lstrip('/') or "taskmaster",
+            cursorclass=pymysql.cursors.DictCursor
+        )
+    except Exception as e:
+        # Se a URL falhar, tenta a conexão manual que funcionou no terminal
+        return pymysql.connect(
+            host="127.0.0.1",
+            port=25789,
+            user="root",
+            password="Prometheus15!",
+            database="taskmaster",
+            cursorclass=pymysql.cursors.DictCursor
+        )
 
 @contextmanager
 def get_db():
-    """Context manager para usar em rotas FastAPI via Depends."""
     conn = get_connection()
     try:
         yield conn
@@ -23,12 +37,11 @@ def get_db():
     finally:
         conn.close()
 
-
-def init_db(schema_path: str = "schema.sql"):
-    """Executa o schema.sql para criar as tabelas na primeira execução."""
-    conn = get_connection()
-    with open(schema_path, "r") as f:
-        conn.executescript(f.read())
-    conn.commit()
-    conn.close()
-    print("✅ Banco de dados inicializado.")
+def init_db():
+    """Teste de conexão rápido"""
+    try:
+        conn = get_connection()
+        print("✅ Conexão com MariaDB (25789) ativa!")
+        conn.close()
+    except Exception as e:
+        print(f"❌ Falha na conexão: {e}")

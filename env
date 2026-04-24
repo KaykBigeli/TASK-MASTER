@@ -1,4 +1,1 @@
-DATABASE_URL=./taskmaster.db
-SECRET_KEY=troque-esta-chave-por-algo-seguro-em-producao
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
+DATABASE_URL="mysql+pymysql://root:Prometheus15!@127.0.0.1:25789/taskmaster"
