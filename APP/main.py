@@ -8,28 +8,26 @@ app = FastAPI(
     version="1.0.0",
     description="Backend do sistema de gerenciamento de tarefas.",
 )
-# teste da API
-@app.post("/teste-direto")
-def teste_direto():
-    return {"message": "Se isso aparecer, o problema está no arquivo auth.py"}
 # ------------------------------------------------------------------
 # CORS — ajuste as origens conforme seu frontend
 # ------------------------------------------------------------------
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # ------------------------------------------------------------------
 # Routers
 # ------------------------------------------------------------------
 app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(projects.router)
-
 
 # ------------------------------------------------------------------
 # Inicializa o banco na primeira execução
