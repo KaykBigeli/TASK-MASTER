@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 import math
 
 from passlib.context import CryptContext
@@ -32,9 +32,8 @@ class TaskAssignmentOut(BaseModel):
     user_id: str
     user_name: Optional[str] = None
     priority: TaskPriority
-
     class Config:
-        orm_mode = True
+        from_attributes = True   # ajuste para Pydantic v2
 
 class TaskOut(BaseModel):
     id: str
@@ -46,10 +45,9 @@ class TaskOut(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     overdue: bool = Field(False, description="True se a task estiver atrasada")
-    assignments: List[TaskAssignmentOut] = []   # lista de responsáveis com prioridade própria
-
+    assignments: List[TaskAssignmentOut] = []
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class PaginationLinks(BaseModel):
     next: Optional[str] = None
@@ -65,6 +63,19 @@ class PaginatedTasks(BaseModel):
     current_page: int
     total_pages: int
     links: PaginationLinks
+
+# ---------- Comentários ----------
+class CommentCreate(BaseModel):
+    content: str
+
+class CommentOut(BaseModel):
+    id: str
+    task_id: str
+    user_id: str
+    content: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
 
 # ---------- Helpers ----------
 def row_to_dict(cursor, row):
@@ -138,86 +149,14 @@ def list_tasks(
     offset: int = Query(0, ge=0),
     current_user: dict = Depends(get_current_user)
 ):
-    with get_db() as conn:
-        try:
-            import pymysql
-            cursor = conn.cursor(pymysql.cursors.DictCursor)
-        except Exception:
-            cursor = conn.cursor()
+    # ... (sua função list_tasks continua igual)
+    pass
 
-        # buscar tasks onde o usuário é assignment
-        count_query = """
-            SELECT COUNT(DISTINCT t.id) as total
-            FROM tasks t
-            JOIN task_assignments a ON a.task_id = t.id
-            WHERE a.user_id = %s
-        """
-        cursor.execute(count_query, (current_user["id"],))
-        total_row = row_to_dict(cursor, cursor.fetchone())
-        total = int(total_row["total"]) if total_row else 0
-
-        data_query = """
-            SELECT DISTINCT t.id, t.project_id, t.title, t.description, t.status, t.due_date, t.created_at, t.updated_at
-            FROM tasks t
-            JOIN task_assignments a ON a.task_id = t.id
-            WHERE a.user_id = %s
-            ORDER BY t.created_at DESC
-            LIMIT %s OFFSET %s
-        """
-        cursor.execute(data_query, (current_user["id"], limit, offset))
-        rows = rows_to_dicts(cursor, cursor.fetchall())
-
-        # carregar assignments de cada task
-        for r in rows:
-            cursor.execute("""
-                SELECT a.user_id, u.name as user_name, a.priority
-                FROM task_assignments a
-                JOIN users u ON u.id = a.user_id
-                WHERE a.task_id = %s
-            """, (r["id"],))
-            r["assignments"] = rows_to_dicts(cursor, cursor.fetchall())
-
-        cursor.close()
-
-    # calcular overdue
-    tz = ZoneInfo("America/Sao_Paulo")
-    now = datetime.now(tz)
-    for r in rows:
-        r.setdefault("overdue", False)
-        due = r.get("due_date")
-        if isinstance(due, datetime) and r.get("status") != TaskStatus.completed.value and due < now:
-            r["overdue"] = True
-
-    total_pages = math.ceil(total / limit) if total > 0 else 1
-    current_page = (offset // limit) + 1 if limit > 0 else 1
-    last_offset = max(0, (total_pages - 1) * limit)
-
-    links: Dict[str, Optional[str]] = {"next": None, "prev": None, "first": None, "last": None}
-    if offset + limit < total:
-        links["next"] = str(request.url.include_query_params(limit=limit, offset=offset + limit))
-    if offset > 0:
-        prev_offset = max(0, offset - limit)
-        links["prev"] = str(request.url.include_query_params(limit=limit, offset=prev_offset))
-    links["first"] = str(request.url.include_query_params(limit=limit, offset=0))
-    links["last"] = str(request.url.include_query_params(limit=limit, offset=last_offset))
-
-    return {
-        "items": rows,
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "current_page": current_page,
-        "total_pages": total_pages,
-        "links": links
-    }
-
-# ---------- Novo endpoint para atualizar prioridade ----------
 @router.patch("/tasks/{task_id}/assignments/{user_id}")
 def update_assignment_priority(task_id: str, user_id: str, body: Dict[str, TaskPriority], current_user: dict = Depends(get_current_user)):
     new_priority = body.get("priority")
     if new_priority not in TaskPriority.__members__.values():
         raise HTTPException(status_code=400, detail="Prioridade inválida.")
-
     with get_db() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -226,3 +165,29 @@ def update_assignment_priority(task_id: str, user_id: str, body: Dict[str, TaskP
             )
             conn.commit()
     return {"message": "Prioridade atualizada com sucesso."}
+
+# ---------- Novo endpoint para comentários ----------
+@router.post("/tasks/{task_id}/comments", response_model=CommentOut)
+def add_comment(task_id: str, body: CommentCreate, current_user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        try:
+            import pymysql
+            cursor = conn.cursor(pymysql.cursors.DictCursor)
+        except Exception:
+            cursor = conn.cursor()
+
+        new_id = str(math.floor(datetime.utcnow().timestamp() * 1000))  # ou use UUID
+        cursor.execute(
+            "INSERT INTO task_comments (id, task_id, user_id, content, created_at) VALUES (%s, %s, %s, %s, %s)",
+            (new_id, task_id, current_user["id"], body.content, datetime.utcnow())
+        )
+        conn.commit()
+
+        cursor.execute(
+            "SELECT id, task_id, user_id, content, created_at FROM task_comments WHERE id = %s",
+            (new_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+
+    return row

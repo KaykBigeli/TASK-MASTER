@@ -10,20 +10,20 @@
 </head>
 <body>
 
-  <!-- ══ TELA DE AUTH ══ -->
   <div class="auth-screen" id="authScreen">
     <div class="auth-card">
       <div class="auth-logo">
         <div class="logo-icon">✓</div>
         <span class="logo-text">TaskMaster</span>
       </div>
+      
       <div class="auth-tabs">
         <div class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Entrar</div>
         <div class="auth-tab" id="tabRegister" onclick="switchTab('register')">Criar conta</div>
       </div>
+      
       <div class="auth-error" id="authError"></div>
 
-      <!-- Login -->
       <div id="loginForm">
         <div class="form-group">
           <label class="form-label">E-mail</label>
@@ -31,13 +31,11 @@
         </div>
         <div class="form-group">
           <label class="form-label">Senha</label>
-          <input class="form-input" type="password" id="loginPassword" placeholder="••••••••"
-            onkeydown="if(event.key==='Enter') doLogin()">
+          <input class="form-input" type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
         </div>
         <button class="btn btn-primary btn-full" onclick="doLogin()">Entrar</button>
       </div>
 
-      <!-- Cadastro -->
       <div id="registerForm" style="display:none">
         <div class="form-group">
           <label class="form-label">Nome</label>
@@ -49,15 +47,13 @@
         </div>
         <div class="form-group">
           <label class="form-label">Senha</label>
-          <input class="form-input" type="password" id="regPassword" placeholder="••••••••"
-            onkeydown="if(event.key==='Enter') doRegister()">
+          <input class="form-input" type="password" id="regPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter') doRegister()">
         </div>
         <button class="btn btn-primary btn-full" onclick="doRegister()">Criar conta</button>
       </div>
     </div>
   </div>
 
-  <!-- ══ APP ══ -->
   <nav class="sidebar">
     <div class="logo">
       <div class="logo-icon">✓</div>
@@ -73,7 +69,6 @@
     <div class="nav-section">
       <div class="nav-label">Projetos</div>
       <div id="projectList"></div>
-      <!-- Linha corrigida -->
       <div class="nav-item" onclick="openProjectModal()">➕ Novo projeto</div>
     </div>
 
@@ -112,11 +107,12 @@
       </div>
     </div>
     <div class="content" id="mainContent">
-      <div class="loading"><div class="spinner"></div></div>
+      <div class="loading">
+        <div class="spinner"></div>
+      </div>
     </div>
   </div>
 
-  <!-- ══ MODAL DE TASK ══ -->
   <div class="modal-overlay" id="modalOverlay" onclick="overlayClick(event)">
     <div class="modal" id="taskModal">
       <div class="modal-header">
@@ -129,9 +125,8 @@
       </div>
       <div class="modal-body">
         <input class="modal-title-input" id="modalTitle" placeholder="Título da task">
+        
         <div class="modal-content-wrap">
-
-          <!-- Coluna esquerda -->
           <div class="modal-left">
             <div class="modal-row">
               <div class="modal-field">
@@ -164,13 +159,11 @@
             <div class="field-label mb-12">Checklist</div>
             <div id="modalChecklist"></div>
             <div class="add-item-row">
-              <input class="add-item-input" id="newCheckItem" placeholder="Adicionar item..."
-                onkeydown="if(event.key==='Enter') addCheckItem()">
+              <input class="add-item-input" id="newCheckItem" placeholder="Adicionar item..." onkeydown="if(event.key==='Enter') addCheckItem()">
               <button class="btn btn-primary" onclick="addCheckItem()">+</button>
             </div>
           </div>
 
-          <!-- Coluna direita -->
           <div class="modal-sidebar">
             <div class="modal-field mb-16">
               <div class="field-label">Projeto</div>
@@ -178,48 +171,62 @@
                 <option value="">Nenhum</option>
               </select>
             </div>
+            
             <div class="modal-field mb-16">
               <div class="field-label">Responsáveis</div>
-              <div id="modalAssignees"></div>
+              <div class="add-assignee-row">
+                <select id="assigneeSelect" class="styled-select">
+                  <option value="">Selecione um usuário...</option>
+                  </select>
+                <select id="assigneePriority" class="styled-select">
+                  <option value="high">🔴 Alta</option>
+                  <option value="medium">🟡 Média</option>
+                  <option value="low">🔵 Baixa</option>
+                </select>
+                <button class="btn btn-primary" onclick="addAssignee()">Adicionar</button>
+              </div>
             </div>
+
             <div class="modal-field">
               <div class="field-label">Comentário</div>
               <textarea class="textarea-input" id="modalComment" placeholder="Escreva um comentário..."></textarea>
               <button class="btn btn-primary btn-full mt-8" onclick="postComment()">Postar</button>
             </div>
-          </div>
 
+            <div class="modal-field mt-16">
+              <div class="field-label">Comentários</div>
+              <div id="modalComments" class="comments-section"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-    <!-- Toast de notificação -->
   <div class="toast" id="toast"></div>
 
-  <!-- ══ MODAL DE PROJETO ══ -->
-<div class="modal-overlay" id="projectOverlay" onclick="overlayClick(event)">
-  <div class="modal" id="projectModal">
-    <div class="modal-header">
-      <button class="modal-back" onclick="closeProjectModal()">← Projetos</button>
-      <div class="modal-actions">
-        <div class="icon-btn" onclick="saveProject()" title="Salvar">💾</div>
-        <div class="icon-btn" onclick="closeProjectModal()" title="Fechar">✕</div>
+  <div class="modal-overlay" id="projectOverlay" onclick="overlayClick(event)">
+    <div class="modal" id="projectModal">
+      <div class="modal-header">
+        <button class="modal-back" onclick="closeProjectModal()">← Projetos</button>
+        <div class="modal-actions">
+          <div class="icon-btn" onclick="saveProject()" title="Salvar">💾</div>
+          <div class="icon-btn" onclick="closeProjectModal()" title="Fechar">✕</div>
+        </div>
       </div>
-    </div>
-    <div class="modal-body">
-      <input class="modal-title-input" id="projectName" placeholder="Nome do projeto">
-      <div class="modal-field mb-20">
-        <div class="field-label">Descrição</div>
-        <textarea class="textarea-input" id="projectDescription" placeholder="Adicione uma descrição..."></textarea>
-      </div>
-      <div class="modal-actions">
-        <button class="btn" onclick="closeProjectModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveProject()">Salvar</button>
+      <div class="modal-body">
+        <input class="modal-title-input" id="projectName" placeholder="Nome do projeto">
+        <div class="modal-field mb-20">
+          <div class="field-label">Descrição</div>
+          <textarea class="textarea-input" id="projectDescription" placeholder="Adicione uma descrição..."></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeProjectModal()">Cancelar</button>
+          <button class="btn btn-primary" onclick="saveProject()">Salvar</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
   <script src="app.js"></script>
 </body>

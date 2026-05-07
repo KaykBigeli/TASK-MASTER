@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
-from app.routers import auth, tasks, projects
+from app.routers import users, tasks, auth, projects
 
 app = FastAPI(
     title="TaskMaster API",
@@ -25,8 +25,9 @@ app.add_middleware(
 # ------------------------------------------------------------------
 # Routers
 # ------------------------------------------------------------------
-app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(tasks.router)
+app.include_router(auth.router)
 app.include_router(projects.router)
 
 # ------------------------------------------------------------------
@@ -39,3 +40,4 @@ def startup():
 @app.get("/", tags=["Health"])
 def root():
     return {"status": "ok", "message": "TaskMaster API rodando!"}
+

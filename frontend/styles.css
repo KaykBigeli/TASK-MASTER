@@ -532,3 +532,37 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ══ COMENTÁRIOS ══ */
+.comments-section {
+  margin-top: 10px;
+}
+
+.comment-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border); /* linha separadora */
+}
+
+.comment-author {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.comment-content {
+  margin: 4px 0;
+  color: var(--text);
+}
+
+.comment-date {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.add-assignee-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.add-assignee-row select {
+  flex: 1;
+}

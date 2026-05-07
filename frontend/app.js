@@ -190,6 +190,34 @@ async function loadUsers() {
 }
 
 // Renderiza controles interativos para adicionar/remover responsáveis e ajustar prioridades
+async function loadTasks() {
+  const data = await api('/tasks/');
+  if (!data) {
+    allTasks = { today: [], this_week: [], later: [] };
+    renderTasks();
+    return;
+  }
+
+  // Aceitar formato { today, this_week, later }
+  if (data.today || data.this_week || data.later) {
+    allTasks = {
+      today: data.today || [],
+      this_week: data.this_week || [],
+      later: data.later || []
+    };
+  } else if (Array.isArray(data)) {
+    // fallback: lista direta
+    allTasks = { today: data, this_week: [], later: [] };
+  } else if (data.items && Array.isArray(data.items)) {
+    allTasks = { today: data.items, this_week: [], later: [] };
+  } else {
+    allTasks = { today: [], this_week: [], later: [] };
+  }
+
+  renderTasks();
+}
+
+// Renderiza controles interativos para adicionar/remover responsáveis e ajustar prioridades
 async function renderAssigneeOptions(taskId, currentAssignments = []) {
   const users = await loadUsers();
   const container = document.getElementById('modalAssignees');
@@ -290,6 +318,71 @@ async function renderAssigneeOptions(taskId, currentAssignments = []) {
       }
     });
   });
+}
+
+function renderTasks() {
+  const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const sections = [
+    ['today', 'Hoje'],
+    ['this_week', 'Esta Semana'],
+    ['later', 'Mais Tarde']
+  ];
+
+  let total = 0, done = 0;
+  let html = '<div class="filters-bar">';
+
+  [
+    [null, '⚪ Todas'],
+    ['high', '🔴 Alta'],
+    ['medium', '🟡 Média'],
+    ['low', '🔵 Baixa']
+  ].forEach(([val, label]) => {
+    const active = activeFilter === val ? 'active' : '';
+    html += `<button class="filter-btn ${active}" onclick="setFilter(${val ? `'${val}'` : null})">${label}</button>`;
+  });
+  html += '</div>';
+
+  sections.forEach(([key, label]) => {
+    const tasks = (allTasks[key] || []).filter(t => {
+      // filtro por prioridade
+      if (activeFilter) {
+        const assignment = (t.assignments || t.assignees || []).find(a => a.user_id === (currentUser?.id));
+        const prio = assignment ? assignment.priority : t.priority;
+        if (prio !== activeFilter) return false;
+      }
+      // filtro por busca
+      if (q && !t.title?.toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    total += tasks.length;
+    done += tasks.filter(t => t.status === 'completed').length;
+
+    if (!tasks.length) return;
+
+    html += `
+      <div class="section">
+        <div class="section-header">
+          <span class="section-title">${label}</span>
+          <span class="section-count">${tasks.length} task${tasks.length !== 1 ? 's' : ''}</span>
+          <div class="section-line"></div>
+        </div>`;
+
+    tasks.forEach((t, i) => html += buildTaskRow(t, i));
+    html += '</div>';
+  });
+
+  if (total === 0) {
+    html += `
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-text">Nenhuma task encontrada.<br>Clique em "+ Nova Task" para começar.</div>
+      </div>`;
+  }
+
+  const main = document.getElementById('mainContent');
+  if (main) main.innerHTML = html;
+  updateProgress(done, total);
 }
 
 /* ══ RENDERIZAÇÃO ══ */
@@ -433,6 +526,7 @@ async function openTask(id) {
   renderAssigneeOptions(task.id, task.assignments || task.assignees || []);
   const overlay = document.getElementById('modalOverlay');
   if (overlay) overlay.classList.add('open');
+  loadUsersForSelect();
 }
 
 function fillModal(task) {
@@ -456,6 +550,7 @@ function fillModal(task) {
 
   renderChecklist(task.checklist  || []);
   renderAssignees(task.assignments || task.assignees || []);
+  renderComments(task.comments || []);
 }
 
 function renderChecklist(items) {
@@ -486,6 +581,56 @@ function renderAssignees(assignees) {
 
   const el = document.getElementById('modalAssignees');
   if (el) el.innerHTML = html;
+}
+
+function renderComments(comments) {
+  const container = document.getElementById('modalComments');
+  if (!container) return;
+
+  if (!comments || !comments.length) {
+    container.innerHTML = '<span class="no-comment">Nenhum comentário ainda.</span>';
+    return;
+  }
+
+  container.innerHTML = comments.map(c => `
+    <div class="comment-row">
+      <div class="comment-author">${esc(c.user_name || 'Usuário')}</div>
+      <div class="comment-content">${esc(c.content)}</div>
+      <div class="comment-date">${new Date(c.created_at).toLocaleString()}</div>
+    </div>
+  `).join('');
+}
+
+async function addAssignee() {
+  const userId = document.getElementById('assigneeSelect').value;
+  const priority = document.getElementById('assigneePriority').value;
+  if (!userId || !currentTask) return;
+
+  const resp = await api(`/tasks/${currentTask.id}/assignees/${userId}`, {
+    method: 'POST',
+    body: JSON.stringify({ priority })
+  });
+
+  if (resp) {
+    showToast('Responsável adicionado!', 'success');
+    // recarregar task para atualizar lista
+    const updated = await api(`/tasks/${currentTask.id}`);
+    if (updated) {
+      currentTask = updated;
+      renderAssignees(updated.assignments || []);
+    }
+  } else {
+    showToast('Erro ao adicionar responsável.', 'error');
+  }
+}
+
+async function loadUsersForSelect() {
+  const users = await api('/users/');
+  const select = document.getElementById('assigneeSelect');
+  if (!select) return;
+
+  select.innerHTML = '<option value="">Selecione um usuário...</option>' +
+    users.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
 }
 
 async function toggleCheckItem(id, status) {
@@ -589,11 +734,28 @@ async function deleteCurrentTask() {
 }
 
 async function postComment() {
-  const content = document.getElementById('modalComment') ? document.getElementById('modalComment').value.trim() : '';
-  if (!content) return;
-  showToast('Comentário registrado!', 'success');
-  const el = document.getElementById('modalComment');
-  if (el) el.value = '';
+  const contentEl = document.getElementById('modalComment');
+  const content = contentEl ? contentEl.value.trim() : '';
+  if (!content || !currentTask) return;
+
+  const resp = await api(`/tasks/${currentTask.id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ content })
+  });
+
+  if (resp) {
+    showToast('Comentário registrado!', 'success');
+    if (contentEl) contentEl.value = '';
+
+    // recarregar task para atualizar lista de comentários
+    const updated = await api(`/tasks/${currentTask.id}`);
+    if (updated) {
+      currentTask = updated;
+      renderComments(updated.comments || []);
+    }
+  } else {
+    showToast('Erro ao salvar comentário.', 'error');
+  }
 }
 
 /* ══ PROJETOS (MODAL) ══ */
