@@ -120,9 +120,15 @@ function logout() {
 /* ══ INICIALIZAÇÃO ══ */
 
 async function initApp() {
-  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('authScreen').style.display = 'none';
   updateSidebarUser();
-  await Promise.all([loadTasks(), loadProjects()]);
+
+  // Carrega usuários junto com tasks e projetos
+  await Promise.all([
+    loadUsers(),   // <-- adiciona aqui
+    loadTasks(),
+    loadProjects()
+  ]);
 }
 
 function updateSidebarUser() {
@@ -158,63 +164,33 @@ async function api(path, opts = {}) {
 
 async function loadTasks() {
   const data = await api('/tasks/');
+  console.log("Tasks recebidas:", data);
+  
   if (!data) {
-    allTasks = { today: [], this_week: [], later: [] };
-    renderTasks();
-    return;
+    allTasks = { today: [], this_week: [], later: [], completed: [] };
+  } else if (data.today || data.this_week || data.later) {
+    allTasks = {
+      today: data.today || [],
+      this_week: data.this_week || [],
+      later: data.later || [],
+      completed: data.completed || []
+    };
+  } else if (Array.isArray(data)) {
+    allTasks = { today: data, this_week: [], later: [], completed: [] };
+  } else if (data.items && Array.isArray(data.items)) {
+    allTasks = { today: data.items, this_week: [], later: [], completed: [] };
+  } else {
+    allTasks = { today: [], this_week: [], later: [], completed: [] };
   }
-  // backend pode retornar { items: [...] } ou lista direta
-  let items = [];
-  if (Array.isArray(data)) items = data;
-  else if (data.items && Array.isArray(data.items)) items = data.items;
-  else items = [];
-
-  allTasks = { today: items, this_week: [], later: [] };
   renderTasks();
 }
 
 async function loadProjects() {
   const data = await api('/projects/');
-  if (!data) return;
-  projects = data;
+  projects = Array.isArray(data) ? data.filter(p => p.id && p.name) : [];
+  
   renderProjectSidebar();
   populateProjectSelect();
-}
-
-/* ══ NOVAS FUNÇÕES: USUÁRIOS E ASSIGNEES ══ */
-
-// Carrega lista de usuários do backend
-async function loadUsers() {
-  const res = await api('/users/');
-  return Array.isArray(res) ? res : [];
-}
-
-// Renderiza controles interativos para adicionar/remover responsáveis e ajustar prioridades
-async function loadTasks() {
-  const data = await api('/tasks/');
-  if (!data) {
-    allTasks = { today: [], this_week: [], later: [] };
-    renderTasks();
-    return;
-  }
-
-  // Aceitar formato { today, this_week, later }
-  if (data.today || data.this_week || data.later) {
-    allTasks = {
-      today: data.today || [],
-      this_week: data.this_week || [],
-      later: data.later || []
-    };
-  } else if (Array.isArray(data)) {
-    // fallback: lista direta
-    allTasks = { today: data, this_week: [], later: [] };
-  } else if (data.items && Array.isArray(data.items)) {
-    allTasks = { today: data.items, this_week: [], later: [] };
-  } else {
-    allTasks = { today: [], this_week: [], later: [] };
-  }
-
-  renderTasks();
 }
 
 // Renderiza controles interativos para adicionar/remover responsáveis e ajustar prioridades
@@ -321,73 +297,6 @@ async function renderAssigneeOptions(taskId, currentAssignments = []) {
 }
 
 function renderTasks() {
-  const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
-  const sections = [
-    ['today', 'Hoje'],
-    ['this_week', 'Esta Semana'],
-    ['later', 'Mais Tarde']
-  ];
-
-  let total = 0, done = 0;
-  let html = '<div class="filters-bar">';
-
-  [
-    [null, '⚪ Todas'],
-    ['high', '🔴 Alta'],
-    ['medium', '🟡 Média'],
-    ['low', '🔵 Baixa']
-  ].forEach(([val, label]) => {
-    const active = activeFilter === val ? 'active' : '';
-    html += `<button class="filter-btn ${active}" onclick="setFilter(${val ? `'${val}'` : null})">${label}</button>`;
-  });
-  html += '</div>';
-
-  sections.forEach(([key, label]) => {
-    const tasks = (allTasks[key] || []).filter(t => {
-      // filtro por prioridade
-      if (activeFilter) {
-        const assignment = (t.assignments || t.assignees || []).find(a => a.user_id === (currentUser?.id));
-        const prio = assignment ? assignment.priority : t.priority;
-        if (prio !== activeFilter) return false;
-      }
-      // filtro por busca
-      if (q && !t.title?.toLowerCase().includes(q)) return false;
-      return true;
-    });
-
-    total += tasks.length;
-    done += tasks.filter(t => t.status === 'completed').length;
-
-    if (!tasks.length) return;
-
-    html += `
-      <div class="section">
-        <div class="section-header">
-          <span class="section-title">${label}</span>
-          <span class="section-count">${tasks.length} task${tasks.length !== 1 ? 's' : ''}</span>
-          <div class="section-line"></div>
-        </div>`;
-
-    tasks.forEach((t, i) => html += buildTaskRow(t, i));
-    html += '</div>';
-  });
-
-  if (total === 0) {
-    html += `
-      <div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <div class="empty-text">Nenhuma task encontrada.<br>Clique em "+ Nova Task" para começar.</div>
-      </div>`;
-  }
-
-  const main = document.getElementById('mainContent');
-  if (main) main.innerHTML = html;
-  updateProgress(done, total);
-}
-
-/* ══ RENDERIZAÇÃO ══ */
-
-function renderTasks() {
   const q = (document.getElementById('searchInput') && document.getElementById('searchInput').value || '').toLowerCase();
   const sections = [
     ['today',     'Hoje'],
@@ -409,8 +318,10 @@ function renderTasks() {
   });
   html += '</div>';
 
+  // Renderizar apenas pendentes
   sections.forEach(([key, label]) => {
     const tasks = (allTasks[key] || []).filter(t => {
+      if (t.status === 'completed') return false; // <-- exclui concluídas
       if (activeFilter) {
         const myId = currentUser && currentUser.id ? currentUser.id : null;
         const assignment = (t.assignments || t.assignees || []).find(a => (a.user_id || a.userId || a.user) === myId);
@@ -422,7 +333,6 @@ function renderTasks() {
     });
 
     total += tasks.length;
-    done  += tasks.filter(t => t.status === 'completed').length;
 
     if (!tasks.length) return;
 
@@ -438,6 +348,30 @@ function renderTasks() {
     html += '</div>';
   });
 
+  // Seção de concluídas
+  const completedTasks = [
+    ...(allTasks.today || []).filter(t => t.status === 'completed'),
+    ...(allTasks.this_week || []).filter(t => t.status === 'completed'),
+    ...(allTasks.later || []).filter(t => t.status === 'completed'),
+    ...(allTasks.completed || [])
+  ];
+
+  done = completedTasks.length;
+  total += completedTasks.length;
+
+  if (completedTasks.length) {
+    html += `
+      <div class="section">
+        <div class="section-header">
+          <span class="section-title">Concluídas</span>
+          <span class="section-count">${completedTasks.length} task${completedTasks.length !== 1 ? 's' : ''}</span>
+          <div class="section-line"></div>
+        </div>`;
+
+    completedTasks.forEach((t, i) => html += buildTaskRow(t, i));
+    html += '</div>';
+  }
+
   if (total === 0) {
     html += `
       <div class="empty-state">
@@ -450,6 +384,7 @@ function renderTasks() {
   if (main) main.innerHTML = html;
   updateProgress(done, total);
 }
+
 
 function buildTaskRow(t, index) {
   const isDone  = t.status === 'completed';
@@ -583,6 +518,23 @@ function renderAssignees(assignees) {
   if (el) el.innerHTML = html;
 }
 
+let usersMap = {};
+
+// Função para carregar usuários e montar o mapa
+async function loadUsers() {
+  try {
+    const users = await api('/users/'); // endpoint que retorna todos os usuários
+    usersMap = {};
+    users.forEach(u => {
+      usersMap[u.id] = u.name; // associa id → nome
+    });
+    console.log("Mapa de usuários carregado:", usersMap);
+  } catch (err) {
+    console.error("Erro ao carregar usuários:", err);
+  }
+}
+
+// Função para renderizar comentários
 function renderComments(comments) {
   const container = document.getElementById('modalComments');
   if (!container) return;
@@ -594,7 +546,7 @@ function renderComments(comments) {
 
   container.innerHTML = comments.map(c => `
     <div class="comment-row">
-      <div class="comment-author">${esc(c.user_name || 'Usuário')}</div>
+      <div class="comment-author">${esc(usersMap[c.user_id] || 'Usuário')}</div>
       <div class="comment-content">${esc(c.content)}</div>
       <div class="comment-date">${new Date(c.created_at).toLocaleString()}</div>
     </div>
